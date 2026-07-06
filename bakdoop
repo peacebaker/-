@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# this script needs to execute from a backup drive with 
+# enough space to hold an uncompressed and compressed version
+# of doophq, sans games
+
+# only run this script from the backup drive
+if [[ $(hostname) == "doohq" ]]; then
+    echo "Please copy this script to a backup drive, load a LiveCD, and ."
+    exit 1
+fi
+
+
+# this line reliably finds the script's current directory, neat!
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+
+# mount doophq or die trying
+mkdir -p /mnt/doop
+if ! mount UUID=8228f814-7031-4585-999f-63a2f44170ea /mnt/doop; then
+    echo "Couldn't mount the doop drive." 
+    exit 2
+fi
+
+# copy the contents of the doop filesystem to the backup drive
+BACKUP_DIR="${SCRIPT_DIR}/live"
+mkdir -p "$BACKUP_DIR"
+if ! rsync -avHP --delete /mnt/doop/ "${BACKUP_DIR}/"; then
+    echo "Copy uncomplete."
+    exit 3
+fi
+
+# compress the backup into an archive-friendly format
+if ! tar -czf "$SCRIPT_DIR/doopHQ.$(printf '%(%Y-%m-%d)T' -1).tar.gz" -C /mnt doop; then
+    echo "Compression failed."
+    exit 4
+fi

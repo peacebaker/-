@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# default options
+menuconfig=false
+oldconfig=false
+
+# parse options
+for arg in "$@"; do
+    case $arg in
+        -m|--menuconfig)
+            menuconfig=true
+        ;;
+    esac
+done
+
+# # if there's a saved config for the currently selected kernel, use it
+# current_kernel_config="/etc/kernels/kernel-config-$(eselect kernel list | grep \* | awk '{print $2}' | sed 's/linux-//g')-x86_64"
+# if [[ -f $current_kernel_config ]]; then
+#     kernel_config=$current_kernel_config
+
+# # if not, use the most recent config
+# else
+#     latest_kernel_config=$(find /etc/kernels -type f | sort -Vr | head -n 1)
+#     if [[ -f $latest_kernel_config ]]; then
+#         kernel_config=$latest_kernel_config
+    
+#     # if there aren't any previous configs, just use the default.
+#     else
+#         kernel_config=/usr/share/genkernel/arch/x86_64/kernel-config
+#     fi
+# fi
+
+# # run genkernel
+# echo "using kernel config: $current_kernel_config"
+# if $menuconfig; then
+#     /usr/bin/sudo /usr/bin/genkernel --kernel-config="$kernel_config" --menuconfig all; genkernel_exit=$?
+# else
+#     /usr/bin/sudo /usr/bin/genkernel --kernel-config="$kernel_config" all; genkernel_exit=$?
+# fi
+
+src=/usr/src/linux
+current_config=/usr/src/linux/.config
+doop_config=/usr/src/doophq-kernel.config
+current_version=$(readlink -f /usr/src/linux | cut -d/ -f4)
+
+
+# if a current configuration file exists
+if [[ -e $current_config ]]; then
+
+    # back up the current configuration file
+    if ! /usr/bin/sudo /usr/bin/cp -a $current_config{,."$(date +%F.%T)"}; then
+        echo "Failed to back up current configuration." >&2
+        exit 1
+    fi
+
+# if no configuration exists
+else
+    #  make sure to run oldconfig
+    oldconfig=true
+
+    # and copy doop's kernel config into the currently selected kernel's source directory
+    if ! /usr/bin/sudo /usr/bin/cp -a $doop_config $current_config; then
+        echo "Failed to deploy doophq-kernel.config." >&2
+        exit 2
+    fi
+fi
+
+# if running menuconfig, just run menuconfig
+if [[ $menuconfig = true ]]; then
+    
+    # configure the kernel via menuconfig
+    if ! /usr/bin/sudo /usr/bin/make -C $src menuconfig; then
+        echo "Failure: make menuconfig." >&2
+        exit 3
+    fi
+
+# without menuconfig
+else
+
+    # run oldconfig if needed
+    if [[ $oldconfig = true ]]; then
+        if ! /usr/bin/sudo /usr/bin/make -C $src oldconfig; then
+            echo "Failure: make oldconfig." >&2
+            exit 4
+        fi
+    fi
+fi
+
+# build the kernel and its modules
+if ! /usr/bin/sudo /usr/bin/make -j9 -C $src ; then
+    echo "Failure: make." >&2
+    exit 5
+fi
+
+# back up doop's current configuration file
+if ! /usr/bin/sudo /usr/bin/cp -a $doop_config{,."$(date +%F.%T)"}; then
+    echo "Failed to back up doophq's current kernel config." >&2
+    exit 6
+fi
+
+# save the new configuration file
+if ! /usr/bin/sudo /usr/bin/cp -a $current_config $doop_config; then
+    echo "Failed to update doophq's saved kernel configuration." >&2
+    exit 7
+fi
+
+# install the modules 
+if ! /usr/bin/sudo /usr/bin/make -C $src modules_install; then
+    echo "Failure: make modules_install." >&2
+    exit 8
+fi
+
+# rebuild external kernel modules
+if ! /usr/bin/sudo /usr/bin/emerge @module-rebuild; then
+    echo "Failed to rebuild external kernel modules." >&2
+    exit 9
+fi
+
+# install the kernel (this updates grub automagically)
+if ! /usr/bin/sudo /usr/bin/make -C $src install; then
+    echo "Failure: make install." >&2
+    exit 10
+fi
