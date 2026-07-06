@@ -1,2 +1,5 @@
-# -
-peacebaker's portable system maintenance scripts, configuration files, and more
+# /,
+peacebaker's semi-portable system maintenance scripts
+
+# /,/conf
+configuration files
