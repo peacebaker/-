@@ -16,20 +16,15 @@ for arg in "$@"; do
     esac
 done
 
-# sync portage
+# if sync is selected (default), sync portage or die trying
 if $sync; then
-    /usr/bin/sudo /usr/bin/eix-sync; sync_exit=$?
-else
-    sync_exit=0
+    if ! /usr/bin/sudo /usr/bin/eix-sync; then
+        echo "Failed to sync." >&2 
+        exit 1
+    fi
 fi
 
-# or die trying
-if [[ sync_exit -ne 0 ]]; then
-    echo "Failed to sync." >&2 
-    exit 1
-fi
-
-# update the system
+# update the system, prompting to accept changes by default
 if ! $auto; then
     /usr/bin/sudo /usr/bin/emerge -auND --with-bdeps y --keep-going y world; update_exit=$?
 else
