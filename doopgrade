@@ -54,7 +54,15 @@ fi
 /usr/bin/sudo /usr/bin/eclean-dist -d; dist_clean_exit=$?
 /usr/bin/sudo /usr/sbin/dispatch-conf; conf_exit=$?
 
+# update flatpak applications
+if $auto; then 
+    /usr/bin/flatpak update -y; flatpak_exit=$?
+else
+    /usr/bin/flatpak update; flatpak_exit=$?
+fi
+
 # check status codes and report failure
 [[ package_clean_exit -ne 0 ]] && echo "Failed to clean packages."
 [[ dist_clean_exit -ne 0 ]]    && echo "Failed to clean distfiles."
 [[ conf_exit -ne 0 ]]          && echo "Failed to update configurations."
+[[ flatpak_exit -ne 0 ]]       && echo "Flatpak failed to update."
