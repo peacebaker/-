@@ -13,35 +13,11 @@ for arg in "$@"; do
     esac
 done
 
-# # if there's a saved config for the currently selected kernel, use it
-# current_kernel_config="/etc/kernels/kernel-config-$(eselect kernel list | grep \* | awk '{print $2}' | sed 's/linux-//g')-x86_64"
-# if [[ -f $current_kernel_config ]]; then
-#     kernel_config=$current_kernel_config
-
-# # if not, use the most recent config
-# else
-#     latest_kernel_config=$(find /etc/kernels -type f | sort -Vr | head -n 1)
-#     if [[ -f $latest_kernel_config ]]; then
-#         kernel_config=$latest_kernel_config
-    
-#     # if there aren't any previous configs, just use the default.
-#     else
-#         kernel_config=/usr/share/genkernel/arch/x86_64/kernel-config
-#     fi
-# fi
-
-# # run genkernel
-# echo "using kernel config: $current_kernel_config"
-# if $menuconfig; then
-#     /usr/bin/sudo /usr/bin/genkernel --kernel-config="$kernel_config" --menuconfig all; genkernel_exit=$?
-# else
-#     /usr/bin/sudo /usr/bin/genkernel --kernel-config="$kernel_config" all; genkernel_exit=$?
-# fi
-
+# constants
 src=/usr/src/linux
-current_config=/usr/src/linux/.config
 doop_config=/usr/src/doophq-kernel.config
-current_version=$(readlink -f /usr/src/linux | cut -d/ -f4)
+current_config=/usr/src/linux/.config
+selected_version=$(readlink -f /usr/src/linux | cut -d/ -f4)
 
 
 # if a current configuration file exists
@@ -55,13 +31,22 @@ if [[ -e $current_config ]]; then
 
 # if no configuration exists
 else
-    #  make sure to run oldconfig
+
+    #  make sure to run oldconfig if this kernel version hasn't been configured yet
     oldconfig=true
 
     # and copy doop's kernel config into the currently selected kernel's source directory
     if ! /usr/bin/sudo /usr/bin/cp -a $doop_config $current_config; then
         echo "Failed to deploy doophq-kernel.config." >&2
         exit 2
+    fi
+fi
+
+# run oldconfig if needed
+if [[ $oldconfig = true ]]; then
+    if ! /usr/bin/sudo /usr/bin/make -C $src oldconfig; then
+        echo "Failure: make oldconfig." >&2
+        exit 4
     fi
 fi
 
@@ -72,17 +57,6 @@ if [[ $menuconfig = true ]]; then
     if ! /usr/bin/sudo /usr/bin/make -C $src menuconfig; then
         echo "Failure: make menuconfig." >&2
         exit 3
-    fi
-
-# without menuconfig
-else
-
-    # run oldconfig if needed
-    if [[ $oldconfig = true ]]; then
-        if ! /usr/bin/sudo /usr/bin/make -C $src oldconfig; then
-            echo "Failure: make oldconfig." >&2
-            exit 4
-        fi
     fi
 fi
 
@@ -116,8 +90,10 @@ if ! /usr/bin/sudo /usr/bin/emerge @module-rebuild; then
     exit 9
 fi
 
-# install the kernel (this updates grub automagically)
+# install the kernel 
 if ! /usr/bin/sudo /usr/bin/make -C $src install; then
     echo "Failure: make install." >&2
     exit 10
 fi
+
+# installing the kernel automagically updates grub thanks to sys-kernel/installkernel

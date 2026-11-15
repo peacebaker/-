@@ -5,7 +5,7 @@
 # of doophq, sans games
 
 # only run this script from the backup drive
-if [[ $(hostname) == "doohq" ]]; then
+if [[ $(hostname) == "doophq" ]]; then
     echo "Please copy this script to a backup drive, load a LiveCD, and ."
     exit 1
 fi

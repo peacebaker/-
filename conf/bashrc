@@ -33,7 +33,6 @@ complete -cf sudo
 # defaults to cwd if no argument is provided
 duf() {
 
-    local opts
     local target
 
     if [[ -n $1 ]]; then
@@ -42,11 +41,7 @@ duf() {
         target="."
     fi
 
-    if [[ -n $2 ]]; then
-        local opts="-n$2"
-    fi
-
-    du -hxa --max-depth=1 "$target" | sort -hr | head $opts
+    du -hxa --max-depth=1 "$target" | sort -hr 
 }
 
 
